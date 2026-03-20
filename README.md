@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/icon.png" alt="Retext" width="96" height="96">
+  <img src="assets/icon.png?v=2" alt="Retext" width="128" height="128">
 </p>
 
 <h1 align="center">Retext</h1>
