@@ -96,6 +96,9 @@ class SettingsWindow:
             hotkey_row, text="Record", command=self._start_recording,
         )
         self.record_btn.pack(side="left", padx=8)
+        ttk.Button(
+            hotkey_row, text="Reset", command=self._reset_hotkey,
+        ).pack(side="left")
 
         # --- Buttons ---
         btn_row = ttk.Frame(main)
@@ -122,6 +125,12 @@ class SettingsWindow:
     # ------------------------------------------------------------------
     # Hotkey recording
     # ------------------------------------------------------------------
+
+    def _reset_hotkey(self) -> None:
+        """Reset hotkey to default (ctrl+shift+r)."""
+        from rewrite.config import DEFAULT_CONFIG
+
+        self.hotkey_var.set(DEFAULT_CONFIG["hotkey"])
 
     def _start_recording(self) -> None:
         self.record_btn.config(text="Press keys\u2026")

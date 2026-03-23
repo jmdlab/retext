@@ -19,6 +19,7 @@ from rewrite.clipboard import (
 )
 from rewrite.config import load_config
 from rewrite.hotkey import HotkeyManager
+from rewrite.logviewer import LogViewer, log_buffer
 from rewrite.rewriter import rewrite_text
 from rewrite.settings import open_settings
 
@@ -55,33 +56,74 @@ class RewriteApp:
         self.hotkey_manager = HotkeyManager()
         self.tray: pystray.Icon | None = None
         self._settings_open = False
+        self._log_viewer = LogViewer(icon_path=ICON_PATH)
+
+    # ------------------------------------------------------------------
+    # Tray tooltip helper
+    # ------------------------------------------------------------------
+
+    def _set_status(self, status: str) -> None:
+        """Update the tray tooltip with a status message."""
+        if self.tray:
+            self.tray.title = f"Retext — {status}"
 
     # ------------------------------------------------------------------
     # Rewrite pipeline
     # ------------------------------------------------------------------
 
     def _on_rewrite(self) -> None:
-        """Hotkey callback — run the pipeline on a daemon thread."""
-        threading.Thread(
-            target=self._rewrite_pipeline, daemon=True,
-        ).start()
+        """Hotkey callback — already invoked on a daemon thread by HotkeyManager."""
+        self._rewrite_pipeline()
 
     def _rewrite_pipeline(self) -> None:
         """Capture -> rewrite -> paste -> restore clipboard."""
+        log_buffer.append("Hotkey triggered")
+        self._set_status("Capturing…")
+
         original_clipboard = save_clipboard()
         try:
             text = capture_selection()
             if not text:
+                log_buffer.append("No text selected — skipped")
+                self._set_status("Ready")
                 return
+
+            preview = text[:60].replace("\n", " ")
+            log_buffer.append(f"Captured {len(text)} chars: \"{preview}\"")
+            self._set_status("Rewriting…")
+            log_buffer.append("Sending to Gemini…")
 
             corrected = asyncio.run(rewrite_text(text))
 
             if corrected and corrected != text:
                 replace_selection(corrected)
-        except Exception:
+                log_buffer.append(f"Done — replaced ({len(text)} → {len(corrected)} chars)")
+                self._set_status("Done!")
+            else:
+                log_buffer.append("No changes needed")
+                self._set_status("Ready")
+        except Exception as exc:
+            log_buffer.append(f"Error: {exc}")
+            self._set_status("Error")
             log.exception("Pipeline error")
         finally:
             restore_clipboard(original_clipboard)
+
+    # ------------------------------------------------------------------
+    # Log viewer
+    # ------------------------------------------------------------------
+
+    def _on_show_log(
+        self,
+        icon: pystray.Icon | None = None,
+        item: pystray.MenuItem | None = None,
+    ) -> None:
+        """Open the log viewer window."""
+        if self._log_viewer.is_open:
+            return
+        threading.Thread(
+            target=self._log_viewer.show, daemon=True,
+        ).start()
 
     # ------------------------------------------------------------------
     # Settings
@@ -135,11 +177,14 @@ class RewriteApp:
             self.config["hotkey"], self._on_rewrite,
         )
 
+        log_buffer.append(f"Started — hotkey: {self.config['hotkey']}")
+
         menu = pystray.Menu(
             pystray.MenuItem(
                 "Rewrite Selection", self._on_rewrite, default=True,
             ),
             pystray.Menu.SEPARATOR,
+            pystray.MenuItem("Show Log", self._on_show_log),
             pystray.MenuItem("Settings\u2026", self._on_settings),
             pystray.MenuItem("Quit", self._on_quit),
         )
@@ -147,7 +192,7 @@ class RewriteApp:
         self.tray = pystray.Icon(
             name="Retext",
             icon=_get_icon_image(),
-            title="Retext",
+            title="Retext — Ready",
             menu=menu,
         )
         self.tray.run()
