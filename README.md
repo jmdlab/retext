@@ -50,7 +50,7 @@ Right-click the tray icon → **Settings**:
 | Model | `gemini-2.5-flash` | Any Gemini model name |
 | Hotkey | `Ctrl+Shift+R` | Click **Record** to change |
 
-Config is stored in `%APPDATA%\Retext\config.json`.
+Config is stored in `%APPDATA%\Retext\config.json`. The API key is stored securely in Windows Credential Manager.
 
 ## Build from source
 
