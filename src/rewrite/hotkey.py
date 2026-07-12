@@ -9,6 +9,8 @@ from collections.abc import Callable
 
 from pynput import keyboard
 
+from rewrite.win32input import vk_for_char
+
 log = logging.getLogger(__name__)
 
 # Map string modifier names to sets of pynput Key variants they can appear as.
@@ -25,10 +27,40 @@ for _name, _variants in _MOD_VARIANTS.items():
     for _v in _variants:
         _KEY_TO_MOD[_v] = _name
 
+# Named keys (pynput Key.name spelling) → Windows virtual-key code.
+_NAMED_VKS: dict[str, int] = {
+    **{f"f{i}": 0x6F + i for i in range(1, 25)},  # F1=0x70 … F24=0x87
+    "space": 0x20,
+    "tab": 0x09,
+    "enter": 0x0D,
+    "backspace": 0x08,
+    "delete": 0x2E,
+    "insert": 0x2D,
+    "home": 0x24,
+    "end": 0x23,
+    "page_up": 0x21,
+    "page_down": 0x22,
+    "up": 0x26,
+    "down": 0x28,
+    "left": 0x25,
+    "right": 0x27,
+    "esc": 0x1B,
+    "escape": 0x1B,
+    "pause": 0x13,
+    "menu": 0x5D,
+}
 
-def _vk_for_char(char: str) -> int | None:
-    """Return the Windows virtual-key code for a single character."""
-    return ord(char.upper())
+
+def _vk_for_key(part: str) -> int | None:
+    """Return the Windows VK code for a hotkey part, or None if unsupported."""
+    if part in _NAMED_VKS:
+        return _NAMED_VKS[part]
+    if len(part) != 1:
+        return None
+    if "a" <= part <= "z" or "0" <= part <= "9":
+        return ord(part.upper())
+    # Punctuation etc. — resolve against the current keyboard layout
+    return vk_for_char(part)
 
 
 def _parse_hotkey(
@@ -42,8 +74,11 @@ def _parse_hotkey(
     for part in parts:
         if part in _MOD_VARIANTS:
             modifiers.add(part)
-        else:
-            vk = _vk_for_char(part)
+            continue
+        vk = _vk_for_key(part)
+        if vk is None:
+            msg = f"Unsupported key in hotkey '{hotkey_str}': {part!r}"
+            raise ValueError(msg)
 
     if vk is None:
         msg = f"No trigger key found in hotkey: {hotkey_str}"
@@ -78,13 +113,15 @@ class HotkeyManager:
             mod = _KEY_TO_MOD.get(key)
             if mod:
                 self._active_mods.add(mod)
-            return
+                return
+            # Special non-modifier key (F9, Home…) — may be the trigger
+            vk = getattr(key.value, "vk", None)
+        else:
+            vk = getattr(key, "vk", None)
 
-        # Non-modifier key — check for hotkey match
         if self._trigger_vk is None or self._callback is None:
             return
 
-        vk = getattr(key, "vk", None)
         now = time.monotonic()
         if (
             vk == self._trigger_vk

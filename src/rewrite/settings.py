@@ -160,13 +160,23 @@ class SettingsWindow:
             pynput_kb.Key.alt_l: "alt",
             pynput_kb.Key.alt_r: "alt",
             pynput_kb.Key.cmd: "win",
+            pynput_kb.Key.cmd_l: "win",
+            pynput_kb.Key.cmd_r: "win",
         }
         if key in mod_map:
             self._rec_modifiers.add(mod_map[key])
             return
 
-        if isinstance(key, pynput_kb.KeyCode) and key.char:
-            key_name = key.char.lower()
+        if isinstance(key, pynput_kb.KeyCode):
+            vk = key.vk
+            # With Ctrl held, key.char is a control character — derive the
+            # name from the VK code for letters and digits instead.
+            if vk is not None and (0x30 <= vk <= 0x39 or 0x41 <= vk <= 0x5A):
+                key_name = chr(vk).lower()
+            elif key.char and key.char.isprintable():
+                key_name = key.char.lower()
+            else:
+                return
         elif isinstance(key, pynput_kb.Key):
             key_name = key.name
         else:
