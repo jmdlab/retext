@@ -17,11 +17,31 @@ from rewrite.win32input import (
     VK_MODIFIER_NAMES,
     VK_V,
     GetAsyncKeyState,
+    get_clipboard_sequence,
     get_foreground_window,
     sendinput_combo,
 )
 
-CLIPBOARD_DELAY: float = 0.10  # 100ms — modern apps populate clipboard in <16ms
+# Max wait for the target app to answer Ctrl+C. Modern apps populate the
+# clipboard in <16ms; the sequence-number poll below exits as soon as it lands.
+CLIPBOARD_TIMEOUT: float = 0.5
+_POLL_INTERVAL: float = 0.005
+
+# Grace period after Ctrl+V so the target app reads the clipboard before
+# restore_clipboard() overwrites it.
+PASTE_SETTLE: float = 0.10
+
+
+def _wait_for_clipboard_change(
+    seq_before: int, timeout: float = CLIPBOARD_TIMEOUT,
+) -> bool:
+    """Poll the clipboard sequence number until it changes or timeout."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if get_clipboard_sequence() != seq_before:
+            return True
+        time.sleep(_POLL_INTERVAL)
+    return get_clipboard_sequence() != seq_before
 
 
 # ---------------------------------------------------------------------------
@@ -83,17 +103,21 @@ def capture_selection() -> str | None:
     fg = get_foreground_window()
     log_buffer.append(f"Target: fg=0x{fg:X}")
 
-    # Clear clipboard, send Ctrl+C, read back
+    # Clear clipboard (synchronous), send Ctrl+C, poll for the change
     pyperclip.copy("")
-    time.sleep(0.03)
+    seq_before = get_clipboard_sequence()
 
     sent = sendinput_combo(VK_CONTROL, VK_C)
     if sent == 0:
         log_buffer.append("SendInput failed (UIPI? elevated target?)")
 
-    time.sleep(CLIPBOARD_DELAY)
+    changed = _wait_for_clipboard_change(seq_before)
 
     captured = pyperclip.paste()
+    if changed and not captured:
+        # Sequence bumped but text not readable yet (delayed rendering)
+        time.sleep(0.02)
+        captured = pyperclip.paste()
     if captured:
         log_buffer.append("Ctrl+C succeeded")
         return captured
@@ -110,8 +134,7 @@ def replace_selection(text: str) -> None:
     """Paste *text* over the current selection via SendInput Ctrl+V."""
     from rewrite.logviewer import log_buffer
 
-    pyperclip.copy(text)
-    time.sleep(0.03)
+    pyperclip.copy(text)  # synchronous — clipboard is set on return
 
     sent = sendinput_combo(VK_CONTROL, VK_V)
     if sent == 0:
@@ -119,7 +142,7 @@ def replace_selection(text: str) -> None:
     else:
         log_buffer.append("Pasted via SendInput Ctrl+V")
 
-    time.sleep(CLIPBOARD_DELAY)
+    time.sleep(PASTE_SETTLE)
 
 
 def restore_clipboard(original: str | None) -> None:
