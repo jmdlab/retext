@@ -9,7 +9,7 @@ class BaseProvider(ABC):
     """Base interface that all AI rewrite providers must implement."""
 
     @abstractmethod
-    async def rewrite(self, text: str, system_prompt: str = "") -> str:
+    def rewrite(self, text: str, system_prompt: str = "") -> str:
         """Send text to the AI model for correction.
 
         Args:
