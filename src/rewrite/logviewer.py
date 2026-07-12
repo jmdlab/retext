@@ -6,10 +6,10 @@ import contextlib
 import threading
 import tkinter as tk
 from collections import deque
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 from tkinter import ttk
-from collections.abc import Callable
 
 _MAX_ENTRIES = 200
 
