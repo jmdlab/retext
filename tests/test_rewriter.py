@@ -1,7 +1,13 @@
 import pytest
 
+from rewrite.providers.base import BaseProvider
 from rewrite.providers.gemini import GeminiProvider
-from rewrite.rewriter import SYSTEM_PROMPT, clean_response, get_provider
+from rewrite.rewriter import (
+    SYSTEM_PROMPT,
+    clean_response,
+    get_provider,
+    rewrite_text,
+)
 
 
 class TestCleanResponse:
@@ -56,3 +62,20 @@ class TestGetProvider:
 
     def test_system_prompt_not_empty(self):
         assert len(SYSTEM_PROMPT) > 50
+
+
+class FakeProvider(BaseProvider):
+    def __init__(self, response: str) -> None:
+        self.response = response
+        self.received_prompt: str | None = None
+
+    def rewrite(self, text: str, system_prompt: str = "") -> str:
+        self.received_prompt = system_prompt
+        return self.response
+
+
+class TestRewriteText:
+    def test_passes_system_prompt_and_cleans(self):
+        provider = FakeProvider('"Hello world"')
+        assert rewrite_text("helo world", provider) == "Hello world"
+        assert provider.received_prompt == SYSTEM_PROMPT

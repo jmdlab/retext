@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import sys
 import threading
@@ -20,7 +19,8 @@ from rewrite.clipboard import (
 from rewrite.config import load_config
 from rewrite.hotkey import HotkeyManager
 from rewrite.logviewer import LogViewer, log_buffer
-from rewrite.rewriter import rewrite_text
+from rewrite.providers.base import BaseProvider
+from rewrite.rewriter import get_provider, rewrite_text
 from rewrite.settings import open_settings
 
 log = logging.getLogger(__name__)
@@ -58,6 +58,17 @@ class RewriteApp:
         self._settings_open = False
         self._log_viewer = LogViewer(icon_path=ICON_PATH)
         self._pipeline_lock = threading.Lock()
+        self._provider: BaseProvider | None = None
+
+    def _get_provider(self) -> BaseProvider:
+        """Return the cached provider, creating it on first use.
+
+        Reusing the provider keeps the HTTP connection alive between
+        rewrites; the cache is invalidated when settings change.
+        """
+        if self._provider is None:
+            self._provider = get_provider(self.config)
+        return self._provider
 
     # ------------------------------------------------------------------
     # Tray tooltip helper
@@ -103,11 +114,13 @@ class RewriteApp:
             self._set_status("Rewriting…")
             log_buffer.append("Sending to Gemini…")
 
-            corrected = asyncio.run(rewrite_text(text, config=self.config))
+            corrected = rewrite_text(text, self._get_provider())
 
             if corrected and corrected != text:
                 replace_selection(corrected)
-                log_buffer.append(f"Done — replaced ({len(text)} → {len(corrected)} chars)")
+                log_buffer.append(
+                    f"Done — replaced ({len(text)} → {len(corrected)} chars)",
+                )
                 self._set_status("Done!")
             else:
                 log_buffer.append("No changes needed")
@@ -151,6 +164,7 @@ class RewriteApp:
 
         def _on_save(new_config: dict) -> None:
             self.config = new_config
+            self._provider = None  # API key or model may have changed
             self.hotkey_manager.register(
                 self.config["hotkey"], self._on_rewrite,
             )

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from rewrite.config import load_config
+from rewrite.providers.base import BaseProvider
 from rewrite.providers.gemini import GeminiProvider
 
 SYSTEM_PROMPT = """\
@@ -56,10 +57,9 @@ def clean_response(text: str) -> str:
     return text.strip()
 
 
-async def rewrite_text(text: str, config: dict | None = None) -> str:
-    """Send text to Gemini, return corrected text."""
-    provider = get_provider(config)
-    result = await provider.rewrite(text, system_prompt=SYSTEM_PROMPT)
+def rewrite_text(text: str, provider: BaseProvider) -> str:
+    """Send text to the provider, return corrected text."""
+    result = provider.rewrite(text, system_prompt=SYSTEM_PROMPT)
     return clean_response(result)
 
 

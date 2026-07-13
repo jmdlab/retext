@@ -44,6 +44,14 @@ GetAsyncKeyState = _user32.GetAsyncKeyState
 GetAsyncKeyState.argtypes = [ctypes.c_int]
 GetAsyncKeyState.restype = ctypes.wintypes.SHORT
 
+_GetClipboardSequenceNumber = _user32.GetClipboardSequenceNumber
+_GetClipboardSequenceNumber.argtypes = []
+_GetClipboardSequenceNumber.restype = ctypes.wintypes.DWORD
+
+_VkKeyScanW = _user32.VkKeyScanW
+_VkKeyScanW.argtypes = [ctypes.wintypes.WCHAR]
+_VkKeyScanW.restype = ctypes.wintypes.SHORT
+
 
 # ---------------------------------------------------------------------------
 # SendInput structures (correct 64-bit layout)
@@ -80,7 +88,9 @@ class _HARDWAREINPUT(ctypes.Structure):
 
 
 class _INPUT_UNION(ctypes.Union):
-    _fields_ = [("mi", _MOUSEINPUT), ("ki", _KEYBDINPUT), ("hi", _HARDWAREINPUT)]
+    _fields_ = [  # noqa: RUF012 — ctypes reads _fields_ as a class attribute
+        ("mi", _MOUSEINPUT), ("ki", _KEYBDINPUT), ("hi", _HARDWAREINPUT),
+    ]
 
 
 class _INPUT(ctypes.Structure):
@@ -99,6 +109,19 @@ _SendInput.restype = ctypes.wintypes.UINT
 def get_foreground_window() -> int:
     """Return the HWND of the foreground window, or 0."""
     return _GetForegroundWindow() or 0
+
+
+def get_clipboard_sequence() -> int:
+    """Return the clipboard sequence number — bumps on every clipboard change."""
+    return _GetClipboardSequenceNumber()
+
+
+def vk_for_char(char: str) -> int | None:
+    """Return the VK code for a character on the current keyboard layout."""
+    result = _VkKeyScanW(char)
+    if result == -1:
+        return None
+    return result & 0xFF
 
 
 def sendinput_combo(modifier_vk: int, key_vk: int) -> int:
