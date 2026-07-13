@@ -36,4 +36,7 @@ jobs:
       - name: Upload exe to release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release upload ${{ github.ref_name }} dist/Retext.exe --clobber
+        # A bare `git push --tags` has no GitHub release yet — create it on the fly.
+        run: |
+          gh release view ${{ github.ref_name }} 2>$null || gh release create ${{ github.ref_name }} --generate-notes
+          gh release upload ${{ github.ref_name }} dist/Retext.exe --clobber
