@@ -22,6 +22,7 @@ from rewrite.logviewer import LogViewer, log_buffer
 from rewrite.providers.base import BaseProvider
 from rewrite.rewriter import get_provider, rewrite_text
 from rewrite.settings import open_settings
+from rewrite.startup import refresh as refresh_startup_entry
 
 log = logging.getLogger(__name__)
 
@@ -229,6 +230,7 @@ def main() -> None:
         format="%(asctime)s [%(name)s] %(message)s",
         datefmt="%H:%M:%S",
     )
+    refresh_startup_entry()
     app = RewriteApp()
     app.run()
 

@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 
 from pynput import keyboard as pynput_kb
 
+from rewrite import startup
 from rewrite.config import load_config, save_config
 
 if TYPE_CHECKING:
@@ -32,7 +33,7 @@ class SettingsWindow:
         get_root()  # ensure hidden root exists
         self.root = tk.Toplevel()
         self.root.title("Retext \u2014 Settings")
-        self.root.geometry("400x300")
+        self.root.geometry("400x370")
         self.root.resizable(False, False)
 
         if icon_path and icon_path.exists():
@@ -101,6 +102,17 @@ class SettingsWindow:
             hotkey_row, text="Reset", command=self._reset_hotkey,
         ).pack(side="left")
 
+        # --- General ---
+        general_frame = ttk.LabelFrame(main, text="General", padding=12)
+        general_frame.pack(fill="x", pady=(0, 12))
+
+        self.startup_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(
+            general_frame,
+            text="Launch at Windows startup",
+            variable=self.startup_var,
+        ).pack(anchor="w")
+
         # --- Buttons ---
         btn_row = ttk.Frame(main)
         btn_row.pack(fill="x", pady=(8, 0))
@@ -122,6 +134,7 @@ class SettingsWindow:
             cfg.get("gemini_model", "gemini-2.5-flash"),
         )
         self.hotkey_var.set(cfg.get("hotkey", "ctrl+shift+r"))
+        self.startup_var.set(startup.is_enabled())
 
     # ------------------------------------------------------------------
     # Hotkey recording
@@ -203,6 +216,7 @@ class SettingsWindow:
         self.config["hotkey"] = self.hotkey_var.get()
 
         save_config(self.config)
+        startup.set_enabled(self.startup_var.get())
         if self.on_save:
             self.on_save(self.config)
         self.root.destroy()
