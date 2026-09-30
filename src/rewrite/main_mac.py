@@ -23,6 +23,7 @@ from rewrite.hotkey import (
     format_hotkey_mac,
     hotkey_string,
     key_name_for_vk,
+    listener_options,
 )
 from rewrite.logbuffer import log_buffer
 from rewrite.pipeline import run_rewrite
@@ -36,9 +37,6 @@ LOG_PATH = Path.home() / "Library" / "Logs" / "Retext" / "retext.log"
 LAUNCH_AGENT_PATH = Path.home() / "Library" / "LaunchAgents" / f"{BUNDLE_ID}.plist"
 ACCESSIBILITY_URL = (
     "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
-)
-INPUT_MONITORING_URL = (
-    "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent"
 )
 
 _WORKING_STATUSES = {"Capturing…", "Rewriting…"}
@@ -104,14 +102,13 @@ class RetextMenuBarApp(rumps.App):
         self._provider: BaseProvider | None = None
         self._recorder: keyboard.Listener | None = None
         self._record_timeout: rumps.Timer | None = None
-        self._had_permissions = macinput.has_permissions()
 
         self._status_item = rumps.MenuItem("Ready")
         self._rewrite_item = rumps.MenuItem(
             "Rewrite Selection", callback=self._on_rewrite_click,
         )
         self._permission_item = rumps.MenuItem(
-            "Grant Permissions…", callback=self._on_permission,
+            "Grant Accessibility Permission…", callback=self._on_permission,
         )
         self._hotkey_item = rumps.MenuItem("Hotkey", callback=self._on_record_hotkey)
         self._key_item = rumps.MenuItem("API Key", callback=self._on_api_key)
@@ -151,20 +148,21 @@ class RetextMenuBarApp(rumps.App):
         self._check_permission()
 
     def _check_permission(self, _timer: rumps.Timer | None = None) -> None:
-        """Show the permission item only while a permission is missing.
+        """Show the permission item while Accessibility is missing, and
+        restart the hotkey listener if it died.
 
-        A pynput listener started without Input Monitoring never receives
-        events, so re-register the hotkey once access is granted.
+        pynput's listener thread exits immediately when macOS refuses its
+        event tap (no permission yet), so retry until it stays alive.
         """
-        granted = macinput.has_permissions()
-        if granted and not self._had_permissions and self._recorder is None:
-            log_buffer.append("Permissions granted — hotkey re-registered")
-            self._register_hotkey()
-        self._had_permissions = granted
-        if granted:
+        trusted = macinput.is_trusted()
+        if trusted:
             self._permission_item.hide()
         else:
             self._permission_item.show()
+        if trusted and self._recorder is None and not self.hotkey_manager.is_listening:
+            self._register_hotkey()
+            if self.hotkey_manager.is_listening:
+                log_buffer.append("Hotkey listener started")
 
     def _set_status(self, status: str) -> None:
         """Thread-safe status update: menu text + a working indicator."""
@@ -303,7 +301,7 @@ class RetextMenuBarApp(rumps.App):
                 mods.discard(_KEY_TO_MOD.get(key, ""))
 
         self._recorder = keyboard.Listener(
-            on_press=_on_press, on_release=_on_release,
+            on_press=_on_press, on_release=_on_release, **listener_options(),
         )
         self._recorder.daemon = True
         self._recorder.start()
@@ -318,10 +316,8 @@ class RetextMenuBarApp(rumps.App):
         self._finish_recording(None)
 
     def _on_permission(self, _sender: rumps.MenuItem) -> None:
-        macinput.request_listen()
-        url = ACCESSIBILITY_URL if not macinput.is_trusted() else INPUT_MONITORING_URL
-        if not macinput.request_trust() or not macinput.can_listen():
-            subprocess.run(["/usr/bin/open", url], check=False)
+        if not macinput.request_trust():
+            subprocess.run(["/usr/bin/open", ACCESSIBILITY_URL], check=False)
 
     def _on_toggle_login(self, _sender: rumps.MenuItem) -> None:
         app = _app_bundle()
@@ -364,11 +360,6 @@ class RetextMenuBarApp(rumps.App):
             log_buffer.append(
                 "Accessibility not granted — enable Retext in System Settings "
                 "→ Privacy & Security → Accessibility",
-            )
-        if not macinput.request_listen():
-            log_buffer.append(
-                "Input Monitoring not granted — enable Retext in System Settings "
-                "→ Privacy & Security → Input Monitoring",
             )
         self._register_hotkey()
         self._refresh_menu()

@@ -44,15 +44,13 @@ The language is auto-detected — works with any language Gemini supports.
 
 1. **Build** `Retext.app` (see [Build from source](#build-from-source)) and move it to `/Applications`
 2. **Open** it — a two-page icon appears in the menu bar (no Dock icon)
-3. **Grant permissions** when prompted, in System Settings → Privacy & Security:
-   - **Accessibility** — to send ⌘C / ⌘V
-   - **Input Monitoring** — to listen for the hotkey
+3. **Grant Accessibility** when prompted (System Settings → Privacy & Security → Accessibility) — used to listen for the hotkey and send ⌘C / ⌘V
 4. Click the menu bar icon → **Set Gemini API Key…** → paste your key
 5. **Select text** anywhere → press `⌃⌥R`
 
 Everything else lives in the menu: record a new hotkey, change the model, **Show Log** (opens in Console), **Launch at Login**.
 
-> Because the app is ad-hoc signed, macOS may forget its permissions after a rebuild. If the hotkey stops working, remove Retext from Accessibility and Input Monitoring, then re-add it.
+> Because the app is ad-hoc signed, macOS may forget its permissions after a rebuild. If the hotkey stops working, run `tccutil reset Accessibility com.jmdlab.retext` and relaunch Retext to get a fresh prompt.
 
 ## Settings (Windows)
 

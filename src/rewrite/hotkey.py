@@ -143,6 +143,20 @@ def hotkey_string(mods: set[str], key_name: str) -> str:
     return "+".join([*names, key_name])
 
 
+def _pass_through(_event_type: int, event: object) -> object:
+    return event
+
+
+def listener_options() -> dict:
+    """Platform-specific pynput Listener options.
+
+    macOS: an intercepting (active) event tap needs only the Accessibility
+    permission, while pynput's default listen-only tap also needs Input
+    Monitoring. Events are passed through untouched.
+    """
+    return {"darwin_intercept": _pass_through} if IS_MAC else {}
+
+
 def key_name_for_vk(vk: int) -> str | None:
     """macOS: return the hotkey name for a recorded key code, or None."""
     return VK_NAMES.get(vk) if IS_MAC else None
@@ -211,6 +225,7 @@ class HotkeyManager:
         self._listener = keyboard.Listener(
             on_press=self._on_press,
             on_release=self._on_release,
+            **listener_options(),
         )
         self._listener.daemon = True
         self._listener.start()
@@ -226,6 +241,11 @@ class HotkeyManager:
         self._trigger_vk = None
         self._modifiers = frozenset()
         self._active_mods.clear()
+
+    @property
+    def is_listening(self) -> bool:
+        """False if the listener died — e.g. its event tap was refused."""
+        return self._listener is not None and self._listener.is_alive()
 
     @property
     def current_hotkey(self) -> str | None:

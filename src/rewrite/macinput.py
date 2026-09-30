@@ -5,8 +5,8 @@ clipboard.py and hotkey.py work unchanged. Key codes are macOS virtual
 key codes (kVK_* from Carbon's Events.h), which map to physical key
 positions on an ANSI keyboard.
 
-Posting events requires the Accessibility permission; reading key state
-and listening for the hotkey require Input Monitoring.
+Posting events and the hotkey's intercepting event tap both require the
+Accessibility permission — nothing else.
 """
 
 from __future__ import annotations
@@ -94,21 +94,6 @@ def is_trusted() -> bool:
 def request_trust() -> bool:
     """Check Accessibility, showing the system prompt if not yet granted."""
     return bool(AXIsProcessTrustedWithOptions({kAXTrustedCheckOptionPrompt: True}))
-
-
-def can_listen() -> bool:
-    """True if this process has Input Monitoring (needed for the hotkey)."""
-    return bool(Quartz.CGPreflightListenEventAccess())
-
-
-def request_listen() -> bool:
-    """Check Input Monitoring, showing the system prompt if not yet granted."""
-    return bool(Quartz.CGRequestListenEventAccess())
-
-
-def has_permissions() -> bool:
-    """True once both Accessibility and Input Monitoring are granted."""
-    return is_trusted() and can_listen()
 
 
 # ---------------------------------------------------------------------------

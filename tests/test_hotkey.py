@@ -124,3 +124,30 @@ class TestHotkeyString:
     def test_roundtrips_through_parser(self):
         mods, _ = _parse_hotkey(hotkey_string({"win", "ctrl"}, "r"))
         assert mods == {"win", "ctrl"}
+
+
+class TestListenerLiveness:
+    def test_not_listening_before_register(self):
+        from rewrite.hotkey import HotkeyManager
+
+        assert HotkeyManager().is_listening is False
+
+    def test_dead_listener_is_not_listening(self):
+        from unittest.mock import MagicMock
+
+        from rewrite.hotkey import HotkeyManager
+
+        manager = HotkeyManager()
+        manager._listener = MagicMock(is_alive=MagicMock(return_value=False))
+        assert manager.is_listening is False
+
+
+@mac_only
+def test_mac_listener_uses_active_tap():
+    # An intercepting tap needs only Accessibility; pynput's default
+    # listen-only tap also needs Input Monitoring.
+    from rewrite.hotkey import listener_options
+
+    intercept = listener_options()["darwin_intercept"]
+    event = object()
+    assert intercept(10, event) is event
