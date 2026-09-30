@@ -5,12 +5,12 @@
 <h1 align="center">Retext</h1>
 
 <p align="center">
-  Select text anywhere in Windows. Press a hotkey. Get it corrected in place.<br>
+  Select text anywhere on Windows or macOS. Press a hotkey. Get it corrected in place.<br>
   Grammar, spelling, punctuation, capitalization — fixed in ~1 second.
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/platform-Windows%2011-blue" alt="Platform">
+  <img src="https://img.shields.io/badge/platform-Windows%2011%20%7C%20macOS-blue" alt="Platform">
   <img src="https://img.shields.io/badge/python-3.12%2B-green" alt="Python">
   <img src="https://img.shields.io/badge/license-MIT-gray" alt="License">
 </p>
@@ -20,27 +20,41 @@
 ## How it works
 
 ```
-Select text → Ctrl+Shift+R → text corrected in place
+Select text → Ctrl+Alt+R (⌃⌥R on Mac) → text corrected in place
 ```
 
-Retext sits in your system tray. When you trigger the hotkey, it:
+Retext sits in your system tray (Windows) or menu bar (macOS). When you trigger the hotkey, it:
 
-1. Copies the selected text via `Ctrl+C`
+1. Copies the selected text via `Ctrl+C` / `⌘C`
 2. Sends it to the Gemini API for correction
-3. Pastes the corrected version via `Ctrl+V`
+3. Pastes the corrected version via `Ctrl+V` / `⌘V`
 4. Restores your original clipboard
 
 The language is auto-detected — works with any language Gemini supports.
 
-## Quick start
+## Quick start (Windows)
 
 1. **Download** `Retext.exe` from [Releases](../../releases)
 2. **Get a free API key** at [aistudio.google.com/apikey](https://aistudio.google.com/apikey)
 3. **Run** `Retext.exe` — it appears in the system tray
 4. **Right-click** the tray icon → **Settings** → paste your API key → **Save**
-5. **Select text** anywhere → press `Ctrl+Shift+R`
+5. **Select text** anywhere → press `Ctrl+Alt+R`
 
-## Settings
+## Quick start (macOS)
+
+1. **Build** `Retext.app` (see [Build from source](#build-from-source)) and move it to `/Applications`
+2. **Open** it — a two-page icon appears in the menu bar (no Dock icon)
+3. **Grant permissions** when prompted, in System Settings → Privacy & Security:
+   - **Accessibility** — to send ⌘C / ⌘V
+   - **Input Monitoring** — to listen for the hotkey
+4. Click the menu bar icon → **Set Gemini API Key…** → paste your key
+5. **Select text** anywhere → press `⌃⌥R`
+
+Everything else lives in the menu: record a new hotkey, change the model, **Show Log** (opens in Console), **Launch at Login**.
+
+> Because the app is ad-hoc signed, macOS may forget its permissions after a rebuild. If the hotkey stops working, remove Retext from Accessibility and Input Monitoring, then re-add it.
+
+## Settings (Windows)
 
 Right-click the tray icon → **Settings**:
 
@@ -48,11 +62,13 @@ Right-click the tray icon → **Settings**:
 |---------|---------|-------------|
 | API Key | — | Your Gemini API key ([get one free](https://aistudio.google.com/apikey)) |
 | Model | `gemini-2.5-flash` | Any Gemini model name |
-| Hotkey | `Ctrl+Shift+R` | Click **Record** to change |
+| Hotkey | `Ctrl+Alt+R` | Click **Record** to change |
 
-Config is stored in `%APPDATA%\Retext\config.json`. The API key is stored securely in Windows Credential Manager.
+Config is stored in `%APPDATA%\Retext\config.json` (Windows) or `~/Library/Application Support/Retext/config.json` (macOS). The API key is stored in Windows Credential Manager or the macOS Keychain.
 
 ## Build from source
+
+### Windows
 
 Requires Python 3.12+.
 
@@ -75,6 +91,22 @@ pyinstaller --onefile --windowed --name Retext --icon assets\icon.ico --add-data
 # Output: dist\Retext.exe
 ```
 
+### macOS
+
+Requires a relocatable CPython 3.12+ build — python.org, Homebrew, or [python-build-standalone](https://github.com/astral-sh/python-build-standalone).
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e .
+
+# Run from source
+python -m rewrite.main_mac
+
+# Build dist/Retext.app (menu bar only, ad-hoc signed)
+./scripts/build_mac.sh
+```
+
 ## Run tests
 
 ```bash
@@ -90,8 +122,10 @@ ruff check src/
 | Global hotkey | [pynput](https://github.com/moses-palmer/pynput) |
 | Clipboard | [pyperclip](https://github.com/asweigart/pyperclip) + pynput |
 | AI | [google-genai](https://github.com/googleapis/python-genai) (Gemini) |
-| System tray | [pystray](https://github.com/moses-palmer/pystray) + [Pillow](https://python-pillow.org/) |
-| Settings UI | tkinter (stdlib) |
+| System tray (Windows) | [pystray](https://github.com/moses-palmer/pystray) + [Pillow](https://python-pillow.org/) |
+| Settings UI (Windows) | tkinter (stdlib) |
+| Menu bar + settings (macOS) | [rumps](https://github.com/jaredks/rumps) + [PyObjC](https://pyobjc.readthedocs.io/) |
+| Keystrokes (macOS) | Quartz `CGEvent` via PyObjC |
 | Packaging | [PyInstaller](https://pyinstaller.org/) |
 
 ## Credits
