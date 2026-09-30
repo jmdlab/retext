@@ -97,10 +97,19 @@ def _wait_for_modifiers_released(timeout: float = 2.0) -> None:
 # ---------------------------------------------------------------------------
 
 
+def _paste_text() -> str:
+    """Read the clipboard as a plain str.
+
+    On macOS pyperclip returns objc.pyobjc_unicode (a str subclass), which
+    google-genai silently serializes as empty content — normalize it here.
+    """
+    return str(pyperclip.paste())
+
+
 def save_clipboard() -> str | None:
     """Return current clipboard text, or None."""
     try:
-        return pyperclip.paste()
+        return _paste_text()
     except Exception:
         return None
 
@@ -127,11 +136,11 @@ def capture_selection() -> str | None:
 
     changed = _wait_for_clipboard_change(seq_before)
 
-    captured = pyperclip.paste()
+    captured = _paste_text()
     if changed and not captured:
         # Sequence bumped but text not readable yet (delayed rendering)
         time.sleep(0.02)
-        captured = pyperclip.paste()
+        captured = _paste_text()
     if captured:
         log_buffer.append("Ctrl+C succeeded")
         return captured
