@@ -1,8 +1,20 @@
+import sys
+
 import pytest
 
-from rewrite.hotkey import _parse_hotkey, _vk_for_key
+from rewrite.hotkey import (
+    _parse_hotkey,
+    _vk_for_key,
+    format_hotkey_mac,
+    hotkey_string,
+)
+
+IS_MAC = sys.platform == "darwin"
+windows_only = pytest.mark.skipif(IS_MAC, reason="Windows VK codes")
+mac_only = pytest.mark.skipif(not IS_MAC, reason="macOS key codes")
 
 
+@windows_only
 class TestParseHotkey:
     def test_default_hotkey(self):
         mods, vk = _parse_hotkey("ctrl+alt+r")
@@ -41,6 +53,7 @@ class TestParseHotkey:
             _parse_hotkey("ctrl+shift")
 
 
+@windows_only
 class TestVkForKey:
     def test_letter(self):
         assert _vk_for_key("r") == ord("R")
@@ -56,3 +69,58 @@ class TestVkForKey:
 
     def test_multichar_garbage_is_none(self):
         assert _vk_for_key("florp") is None
+
+
+@mac_only
+class TestParseHotkeyMac:
+    def test_default_hotkey(self):
+        mods, vk = _parse_hotkey("ctrl+alt+r")
+        assert mods == {"ctrl", "alt"}
+        assert vk == 0x0F  # kVK_ANSI_R
+
+    def test_mac_aliases(self):
+        mods, vk = _parse_hotkey("cmd+option+control+r")
+        assert mods == {"win", "alt", "ctrl"}
+        assert vk == 0x0F
+
+    def test_function_key(self):
+        _, vk = _parse_hotkey("ctrl+f9")
+        assert vk == 0x65
+
+    def test_digit_and_punctuation(self):
+        assert _vk_for_key("1") == 0x12
+        assert _vk_for_key(",") == 0x2B
+
+    def test_named_key(self):
+        _, vk = _parse_hotkey("cmd+shift+space")
+        assert vk == 0x31
+
+    def test_unsupported_key_raises(self):
+        with pytest.raises(ValueError, match="Unsupported key"):
+            _parse_hotkey("ctrl+florp")
+
+
+class TestFormatHotkeyMac:
+    def test_default(self):
+        assert format_hotkey_mac("ctrl+alt+r") == "\u2303\u2325R"
+
+    def test_hig_modifier_order(self):
+        assert format_hotkey_mac("cmd+shift+alt+ctrl+k") == "\u2303\u2325\u21e7\u2318K"
+
+    def test_named_and_function_keys(self):
+        assert format_hotkey_mac("ctrl+space") == "\u2303Space"
+        assert format_hotkey_mac("f5") == "F5"
+
+
+class TestHotkeyString:
+    def test_canonical_order(self):
+        result = hotkey_string({"shift", "ctrl"}, "r")
+        assert result == "ctrl+shift+r"
+
+    def test_command_spelling(self):
+        expected = "alt+cmd+k" if IS_MAC else "alt+win+k"
+        assert hotkey_string({"win", "alt"}, "k") == expected
+
+    def test_roundtrips_through_parser(self):
+        mods, _ = _parse_hotkey(hotkey_string({"win", "ctrl"}, "r"))
+        assert mods == {"win", "ctrl"}

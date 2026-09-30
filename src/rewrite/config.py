@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import sys
 from pathlib import Path
 
 import keyring
@@ -21,7 +22,15 @@ DEFAULT_CONFIG: dict = {
 
 
 def get_config_dir() -> Path:
-    """Return %APPDATA%/Retext/, creating it if it doesn't exist."""
+    """Return the per-user config dir, creating it if it doesn't exist.
+
+    %APPDATA%/Retext/ on Windows, ~/Library/Application Support/Retext/ on macOS.
+    """
+    if sys.platform == "darwin":
+        config_dir = Path.home() / "Library" / "Application Support" / "Retext"
+        config_dir.mkdir(parents=True, exist_ok=True)
+        return config_dir
+
     appdata = os.environ.get("APPDATA")
     if not appdata:
         raise RuntimeError("%APPDATA% environment variable is not set")
