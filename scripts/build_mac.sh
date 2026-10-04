@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build dist/Retext.app — a menu bar app (no Dock icon), ad-hoc signed.
+# Build dist/Retext.app — a menu bar app (no Dock icon).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -33,7 +33,15 @@ plutil -replace CFBundleShortVersionString -string "$VERSION" "$PLIST"
 plutil -replace NSAppleEventsUsageDescription \
   -string "Retext sends Copy and Paste to the app you're typing in." "$PLIST"
 
-codesign --force --deep --sign - dist/Retext.app
+# Stable identity if set up (scripts/make_signing_cert.sh) so macOS keeps the
+# Accessibility grant across rebuilds; ad-hoc otherwise (e.g. CI).
+IDENTITY="Retext Local Signing"
+if security find-certificate -c "$IDENTITY" >/dev/null 2>&1; then
+  codesign --force --deep --sign "$IDENTITY" dist/Retext.app
+else
+  echo "No \"$IDENTITY\" certificate — ad-hoc signing (permissions reset on rebuild)"
+  codesign --force --deep --sign - dist/Retext.app
+fi
 
 echo
 echo "Built dist/Retext.app — move it to /Applications, then open it."
