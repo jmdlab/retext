@@ -1,7 +1,7 @@
 [project]
 name = "retext"
 version = "0.1.0"
-description = "System-wide text rewriter for Windows 11 — select text, press hotkey, get grammar/casing/punctuation corrected in place."
+description = "System-wide text rewriter for Windows 11 and macOS — select text, press hotkey, get grammar/casing/punctuation corrected in place."
 readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.12"
@@ -9,13 +9,18 @@ dependencies = [
     "pynput>=1.7.0",
     "pyperclip>=1.9.0",
     "google-genai>=1.0.0",
-    "pystray>=0.19.5",
+    "pystray>=0.19.5; sys_platform == 'win32'",
     "Pillow>=10.0.0",
     "keyring>=25.0.0",
+    "rumps>=0.4.0; sys_platform == 'darwin'",
+    "pyobjc-framework-Cocoa>=10.0; sys_platform == 'darwin'",
+    "pyobjc-framework-Quartz>=10.0; sys_platform == 'darwin'",
+    "pyobjc-framework-ApplicationServices>=10.0; sys_platform == 'darwin'",
 ]
 
 [project.scripts]
 rewrite = "rewrite.main:main"
+retext-mac = "rewrite.main_mac:main"
 
 [build-system]
 requires = ["hatchling"]

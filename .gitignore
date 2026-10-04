@@ -20,3 +20,4 @@ config.json
 *.tmp.*
 *.spec
 CLAUDE.md
+.venv-build/

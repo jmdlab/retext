@@ -37,3 +37,26 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh release upload ${{ github.ref_name }} dist/Retext.exe --clobber
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Build app
+        env:
+          PYTHON: python
+        run: ./scripts/build_mac.sh
+
+      - name: Zip app
+        run: ditto -c -k --keepParent dist/Retext.app dist/Retext-macOS.zip
+
+      - name: Upload app to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload ${{ github.ref_name }} dist/Retext-macOS.zip --clobber

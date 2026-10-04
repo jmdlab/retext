@@ -10,17 +10,13 @@ from pathlib import Path
 import pystray
 from PIL import Image
 
-from rewrite.clipboard import (
-    capture_selection,
-    replace_selection,
-    restore_clipboard,
-    save_clipboard,
-)
 from rewrite.config import load_config
 from rewrite.hotkey import HotkeyManager
-from rewrite.logviewer import LogViewer, log_buffer
+from rewrite.logbuffer import log_buffer
+from rewrite.logviewer import LogViewer
+from rewrite.pipeline import run_rewrite
 from rewrite.providers.base import BaseProvider
-from rewrite.rewriter import get_provider, rewrite_text
+from rewrite.rewriter import get_provider
 from rewrite.settings import open_settings
 
 log = logging.getLogger(__name__)
@@ -98,39 +94,7 @@ class RewriteApp:
             self._pipeline_lock.release()
 
     def _run_pipeline(self) -> None:
-        log_buffer.append("Hotkey triggered")
-        self._set_status("Capturing…")
-
-        original_clipboard = save_clipboard()
-        try:
-            text = capture_selection()
-            if not text:
-                log_buffer.append("No text selected — skipped")
-                self._set_status("Ready")
-                return
-
-            preview = text[:60].replace("\n", " ")
-            log_buffer.append(f"Captured {len(text)} chars: \"{preview}\"")
-            self._set_status("Rewriting…")
-            log_buffer.append("Sending to Gemini…")
-
-            corrected = rewrite_text(text, self._get_provider())
-
-            if corrected and corrected != text:
-                replace_selection(corrected)
-                log_buffer.append(
-                    f"Done — replaced ({len(text)} → {len(corrected)} chars)",
-                )
-                self._set_status("Done!")
-            else:
-                log_buffer.append("No changes needed")
-                self._set_status("Ready")
-        except Exception as exc:
-            log_buffer.append(f"Error: {exc}")
-            self._set_status("Error")
-            log.exception("Pipeline error")
-        finally:
-            restore_clipboard(original_clipboard)
+        run_rewrite(self._get_provider, self._set_status)
 
     # ------------------------------------------------------------------
     # Log viewer

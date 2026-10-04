@@ -1,4 +1,7 @@
 import json
+import sys
+
+import pytest
 
 from rewrite.config import DEFAULT_CONFIG, load_config, save_config
 
@@ -25,6 +28,7 @@ def test_missing_keys_filled_with_defaults(temp_config_dir):
     assert loaded["gemini_model"] == DEFAULT_CONFIG["gemini_model"]
 
 
+@pytest.mark.skipif(sys.platform == "darwin", reason="Windows %APPDATA% path")
 def test_config_dir_created(tmp_path):
     import os
     from unittest.mock import patch
@@ -33,6 +37,18 @@ def test_config_dir_created(tmp_path):
         from rewrite import config
 
         result = config.get_config_dir()
+        assert result.exists()
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="macOS path")
+def test_config_dir_created_mac(tmp_path):
+    from unittest.mock import patch
+
+    with patch("rewrite.config.Path.home", return_value=tmp_path):
+        from rewrite import config
+
+        result = config.get_config_dir()
+        assert result == tmp_path / "Library" / "Application Support" / "Retext"
         assert result.exists()
 
 

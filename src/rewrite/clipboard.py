@@ -1,26 +1,40 @@
 """Clipboard utilities — save, capture selection, replace, and restore.
 
-Uses SendInput exclusively for keystroke simulation, following the same
-approach as AutoHotkey, Espanso, and PowerToys. The modifier-save/restore
-pattern from PowerToys ensures clean Ctrl+C/V injection.
+Uses SendInput exclusively for keystroke simulation on Windows, following
+the same approach as AutoHotkey, Espanso, and PowerToys. The modifier-save/
+restore pattern from PowerToys ensures clean Ctrl+C/V injection. On macOS
+the same flow runs through Quartz CGEvents with ⌘C/⌘V (see macinput.py).
 """
 
 from __future__ import annotations
 
+import sys
 import time
 
 import pyperclip
 
-from rewrite.win32input import (
-    VK_C,
-    VK_CONTROL,
-    VK_MODIFIER_NAMES,
-    VK_V,
-    GetAsyncKeyState,
-    get_clipboard_sequence,
-    get_foreground_window,
-    sendinput_combo,
-)
+if sys.platform == "darwin":
+    from rewrite.macinput import (
+        VK_C,
+        VK_CONTROL,
+        VK_MODIFIER_NAMES,
+        VK_V,
+        GetAsyncKeyState,
+        get_clipboard_sequence,
+        get_foreground_window,
+        sendinput_combo,
+    )
+else:
+    from rewrite.win32input import (
+        VK_C,
+        VK_CONTROL,
+        VK_MODIFIER_NAMES,
+        VK_V,
+        GetAsyncKeyState,
+        get_clipboard_sequence,
+        get_foreground_window,
+        sendinput_combo,
+    )
 
 # Max wait for the target app to answer Ctrl+C. Modern apps populate the
 # clipboard in <16ms; the sequence-number poll below exits as soon as it lands.
@@ -57,7 +71,7 @@ def _held_modifier_names() -> list[str]:
 
 def _wait_for_modifiers_released(timeout: float = 2.0) -> None:
     """Block until the user physically releases all modifier keys."""
-    from rewrite.logviewer import log_buffer
+    from rewrite.logbuffer import log_buffer
 
     held = _held_modifier_names()
     if held:
@@ -83,17 +97,26 @@ def _wait_for_modifiers_released(timeout: float = 2.0) -> None:
 # ---------------------------------------------------------------------------
 
 
+def _paste_text() -> str:
+    """Read the clipboard as a plain str.
+
+    On macOS pyperclip returns objc.pyobjc_unicode (a str subclass), which
+    google-genai silently serializes as empty content — normalize it here.
+    """
+    return str(pyperclip.paste())
+
+
 def save_clipboard() -> str | None:
     """Return current clipboard text, or None."""
     try:
-        return pyperclip.paste()
+        return _paste_text()
     except Exception:
         return None
 
 
 def capture_selection() -> str | None:
     """Copy the currently selected text via SendInput Ctrl+C."""
-    from rewrite.logviewer import log_buffer
+    from rewrite.logbuffer import log_buffer
 
     original = save_clipboard()
 
@@ -113,11 +136,11 @@ def capture_selection() -> str | None:
 
     changed = _wait_for_clipboard_change(seq_before)
 
-    captured = pyperclip.paste()
+    captured = _paste_text()
     if changed and not captured:
         # Sequence bumped but text not readable yet (delayed rendering)
         time.sleep(0.02)
-        captured = pyperclip.paste()
+        captured = _paste_text()
     if captured:
         log_buffer.append("Ctrl+C succeeded")
         return captured
@@ -132,7 +155,7 @@ def capture_selection() -> str | None:
 
 def replace_selection(text: str) -> None:
     """Paste *text* over the current selection via SendInput Ctrl+V."""
-    from rewrite.logviewer import log_buffer
+    from rewrite.logbuffer import log_buffer
 
     pyperclip.copy(text)  # synchronous — clipboard is set on return
 
