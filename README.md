@@ -42,15 +42,15 @@ The language is auto-detected — works with any language Gemini supports.
 
 ## Quick start (macOS)
 
-1. **Build** `Retext.app` (see [Build from source](#build-from-source)) and move it to `/Applications`
-2. **Open** it — a two-page icon appears in the menu bar (no Dock icon)
+1. **Download** `Retext-macOS.zip` from [Releases](../../releases) (or [build it](#macos)), unzip, and move `Retext.app` to `/Applications`
+2. **Open** it — a two-page icon appears in the menu bar (no Dock icon). The app isn't notarized, so the first launch is blocked: go to System Settings → Privacy & Security → **Open Anyway**
 3. **Grant Accessibility** when prompted (System Settings → Privacy & Security → Accessibility) — used to listen for the hotkey and send ⌘C / ⌘V
 4. Click the menu bar icon → **Set Gemini API Key…** → paste your key
 5. **Select text** anywhere → press `⌃⌥R`
 
 Everything else lives in the menu: record a new hotkey, change the model, **Show Log** (opens in Console), **Launch at Login**.
 
-> Because the app is ad-hoc signed, macOS may forget its permissions after a rebuild. If the hotkey stops working, run `tccutil reset Accessibility com.jmdlab.retext` and relaunch Retext to get a fresh prompt.
+> Release builds are ad-hoc signed, so macOS treats each new version as a new app and asks for Accessibility again. If the hotkey stops working after an update, run `tccutil reset Accessibility com.jmdlab.retext` and relaunch Retext to get a fresh prompt.
 
 ## Settings (Windows)
 
@@ -101,7 +101,11 @@ pip install -e .
 # Run from source
 python -m rewrite.main_mac
 
-# Build dist/Retext.app (menu bar only, ad-hoc signed)
+# Optional, once: create a local signing certificate so rebuilds keep
+# the Accessibility permission (otherwise each build is ad-hoc signed)
+./scripts/make_signing_cert.sh
+
+# Build dist/Retext.app (menu bar only)
 ./scripts/build_mac.sh
 ```
 
