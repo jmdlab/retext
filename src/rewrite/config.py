@@ -16,7 +16,11 @@ KEY_ACCOUNT = "gemini_api_key"
 
 DEFAULT_CONFIG: dict = {
     "hotkey": "ctrl+alt+r",
+    "provider": "gemini",  # "gemini" | "ollama"
     "gemini_model": "gemini-2.5-flash",
+    "ollama_url": "http://127.0.0.1:11434",
+    "ollama_model": "gemma4:e4b",
+    "ollama_auto_update": True,
 }
 
 

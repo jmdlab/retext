@@ -11,7 +11,8 @@ from typing import TYPE_CHECKING
 from pynput import keyboard as pynput_kb
 
 from rewrite import startup
-from rewrite.config import load_config, save_config
+from rewrite.config import DEFAULT_CONFIG, load_config, save_config
+from rewrite.providers import ollama
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -33,7 +34,7 @@ class SettingsWindow:
         get_root()  # ensure hidden root exists
         self.root = tk.Toplevel()
         self.root.title("Retext \u2014 Settings")
-        self.root.geometry("400x370")
+        self.root.minsize(400, 0)  # height follows content
         self.root.resizable(False, False)
 
         if icon_path and icon_path.exists():
@@ -51,9 +52,23 @@ class SettingsWindow:
         main = ttk.Frame(self.root, padding=16)
         main.pack(fill="both", expand=True)
 
+        # --- Provider switch ---
+        prov_frame = ttk.LabelFrame(main, text="Engine", padding=12)
+        prov_frame.pack(fill="x", pady=(0, 12))
+        self.provider_var = tk.StringVar()
+        for value, label in (
+            ("gemini", "Gemini (cloud)"),
+            ("ollama", "Ollama (local)"),
+        ):
+            ttk.Radiobutton(
+                prov_frame, text=label, value=value,
+                variable=self.provider_var, command=self._sync_provider_state,
+            ).pack(side="left", padx=(0, 16))
+
         # --- Gemini ---
         gem_frame = ttk.LabelFrame(main, text="Gemini", padding=12)
         gem_frame.pack(fill="x", pady=(0, 12))
+        self.gemini_frame = gem_frame
 
         ttk.Label(gem_frame, text="API Key:").pack(anchor="w")
         self.gemini_key_var = tk.StringVar()
@@ -79,6 +94,36 @@ class SettingsWindow:
         ttk.Entry(
             gem_frame, textvariable=self.gemini_model_var, width=30,
         ).pack(anchor="w", pady=2)
+
+        # --- Ollama ---
+        oll_frame = ttk.LabelFrame(main, text="Ollama", padding=12)
+        oll_frame.pack(fill="x", pady=(0, 12))
+        self.ollama_frame = oll_frame
+
+        ttk.Label(oll_frame, text="Model:").pack(anchor="w")
+        model_row = ttk.Frame(oll_frame)
+        model_row.pack(anchor="w", pady=2)
+        self.ollama_model_var = tk.StringVar()
+        self.ollama_model_box = ttk.Combobox(
+            model_row, textvariable=self.ollama_model_var, width=30,
+        )
+        self.ollama_model_box.pack(side="left")
+        ttk.Button(
+            model_row, text="Refresh", command=self._refresh_ollama_models,
+        ).pack(side="left", padx=8)
+
+        self.ollama_auto_update_var = tk.BooleanVar(value=True)
+        ttk.Checkbutton(
+            oll_frame,
+            text="Keep model updated (checks daily)",
+            variable=self.ollama_auto_update_var,
+        ).pack(anchor="w", pady=(8, 0))
+
+        self.ollama_status_var = tk.StringVar()
+        ttk.Label(
+            oll_frame, textvariable=self.ollama_status_var,
+            foreground="#5f5f5a", wraplength=340,
+        ).pack(anchor="w", pady=(4, 0))
 
         # --- Hotkey ---
         hotkey_frame = ttk.LabelFrame(main, text="Hotkey", padding=12)
@@ -127,8 +172,47 @@ class SettingsWindow:
         show = "" if self.gem_show_var.get() else "\u2022"
         self.gemini_key_entry.config(show=show)
 
+    def _refresh_ollama_models(self) -> None:
+        """Fill the model dropdown with installed models (local call, fast)."""
+        default = DEFAULT_CONFIG["ollama_model"]
+        try:
+            installed = ollama.list_models(self._ollama_url())
+        except ollama.OllamaError:
+            self.ollama_model_box["values"] = [default]
+            self.ollama_status_var.set(
+                "Ollama isn't running. Start it, then click Refresh. "
+                "Any model you pick is downloaded automatically on Save.",
+            )
+            return
+        values = installed if default in installed else [default, *installed]
+        self.ollama_model_box["values"] = values
+        self.ollama_status_var.set(
+            f"{len(installed)} model(s) installed. A model that isn't "
+            "installed yet is downloaded in the background on Save.",
+        )
+
+    def _ollama_url(self) -> str:
+        return self.config.get("ollama_url", DEFAULT_CONFIG["ollama_url"])
+
+    def _sync_provider_state(self) -> None:
+        """Grey out the settings of the engine that isn't selected."""
+        use_ollama = self.provider_var.get() == "ollama"
+        for frame, enabled in (
+            (self.gemini_frame, not use_ollama),
+            (self.ollama_frame, use_ollama),
+        ):
+            _set_state_recursive(frame, "!disabled" if enabled else "disabled")
+        if use_ollama:
+            self._refresh_ollama_models()
+
     def _load_values(self) -> None:
         cfg = self.config
+        self.provider_var.set(cfg.get("provider", "gemini"))
+        self.ollama_model_var.set(
+            cfg.get("ollama_model", DEFAULT_CONFIG["ollama_model"]),
+        )
+        self.ollama_auto_update_var.set(cfg.get("ollama_auto_update", True))
+        self._sync_provider_state()
         self.gemini_key_var.set(cfg.get("gemini_api_key", ""))
         self.gemini_model_var.set(
             cfg.get("gemini_model", "gemini-2.5-flash"),
@@ -141,9 +225,7 @@ class SettingsWindow:
     # ------------------------------------------------------------------
 
     def _reset_hotkey(self) -> None:
-        """Reset hotkey to default (ctrl+shift+r)."""
-        from rewrite.config import DEFAULT_CONFIG
-
+        """Reset hotkey to default."""
         self.hotkey_var.set(DEFAULT_CONFIG["hotkey"])
 
     def _start_recording(self) -> None:
@@ -211,6 +293,12 @@ class SettingsWindow:
     # ------------------------------------------------------------------
 
     def _on_save_click(self) -> None:
+        self.config["provider"] = self.provider_var.get()
+        self.config["ollama_model"] = (
+            self.ollama_model_var.get().strip()
+            or DEFAULT_CONFIG["ollama_model"]
+        )
+        self.config["ollama_auto_update"] = self.ollama_auto_update_var.get()
         self.config["gemini_api_key"] = self.gemini_key_var.get()
         self.config["gemini_model"] = self.gemini_model_var.get()
         self.config["hotkey"] = self.hotkey_var.get()
@@ -225,6 +313,14 @@ class SettingsWindow:
         self.root.lift()
         self.root.focus_force()
         self.root.mainloop()
+
+
+def _set_state_recursive(widget: tk.Misc, state: str) -> None:
+    """Apply a ttk state flag to every ttk descendant of ``widget``."""
+    for child in widget.winfo_children():
+        if isinstance(child, ttk.Widget) and not isinstance(child, ttk.Frame):
+            child.state([state])
+        _set_state_recursive(child, state)
 
 
 def open_settings(
