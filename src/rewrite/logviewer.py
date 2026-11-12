@@ -11,6 +11,8 @@ from datetime import datetime
 from pathlib import Path
 from tkinter import ttk
 
+from rewrite.ui import MONO, px
+
 _MAX_ENTRIES = 200
 
 
@@ -69,8 +71,9 @@ class LogViewer:
         get_root()  # ensure hidden root exists
         self._window = tk.Toplevel()
         self._window.title("Retext \u2014 Log")
-        self._window.geometry("520x360")
-        self._window.minsize(360, 200)
+        w = self._window
+        w.geometry(f"{px(w, 640)}x{px(w, 400)}")
+        w.minsize(px(w, 360), px(w, 200))
         self._window.protocol("WM_DELETE_WINDOW", self._on_close)
 
         if self._icon_path and self._icon_path.exists():
@@ -85,7 +88,7 @@ class LogViewer:
             frame,
             wrap="word",
             state="disabled",
-            font=("Consolas", 9),
+            font=MONO,
             bg="#1e1e1e",
             fg="#cccccc",
             insertbackground="#cccccc",

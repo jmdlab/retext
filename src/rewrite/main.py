@@ -24,6 +24,7 @@ from rewrite.providers.base import BaseProvider
 from rewrite.rewriter import PROVIDER_LABELS, get_provider, rewrite_text
 from rewrite.settings import open_settings
 from rewrite.startup import refresh as refresh_startup_entry
+from rewrite.ui import enable_dpi_awareness
 
 log = logging.getLogger(__name__)
 
@@ -254,6 +255,7 @@ def main() -> None:
         format="%(asctime)s [%(name)s] %(message)s",
         datefmt="%H:%M:%S",
     )
+    enable_dpi_awareness()  # before any window exists, or Windows blurs them
     refresh_startup_entry()
     app = RewriteApp()
     app.run()
