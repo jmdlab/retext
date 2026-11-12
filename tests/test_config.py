@@ -12,7 +12,14 @@ def test_default_config_returned_when_no_file(temp_config_dir):
 def test_save_and_load_roundtrip(temp_config_dir, sample_config):
     save_config(sample_config)
     loaded = load_config()
-    assert loaded == sample_config
+    assert loaded == {**DEFAULT_CONFIG, **sample_config}
+
+
+def test_ollama_defaults_present(temp_config_dir):
+    config = load_config()
+    assert config["provider"] == "gemini"
+    assert config["ollama_model"] == "gemma4:e4b"
+    assert config["ollama_auto_update"] is True
 
 
 def test_missing_keys_filled_with_defaults(temp_config_dir):

@@ -19,9 +19,12 @@ from rewrite.clipboard import (
 from rewrite.config import load_config
 from rewrite.hotkey import HotkeyManager
 from rewrite.logviewer import LogViewer, log_buffer
+from rewrite.model_updater import ModelUpdater
 from rewrite.providers.base import BaseProvider
-from rewrite.rewriter import get_provider, rewrite_text
+from rewrite.rewriter import PROVIDER_LABELS, get_provider, rewrite_text
 from rewrite.settings import open_settings
+from rewrite.startup import refresh as refresh_startup_entry
+from rewrite.ui import enable_dpi_awareness
 
 log = logging.getLogger(__name__)
 
@@ -59,6 +62,22 @@ class RewriteApp:
         self._log_viewer = LogViewer(icon_path=ICON_PATH)
         self._pipeline_lock = threading.Lock()
         self._provider: BaseProvider | None = None
+        self._updater: ModelUpdater | None = None
+
+    def _restart_model_updater(self) -> None:
+        """(Re)start the Ollama model keeper when Ollama is the provider."""
+        if self._updater is not None:
+            self._updater.stop()
+            self._updater = None
+        if self.config.get("provider") != "ollama":
+            return
+        self._updater = ModelUpdater(
+            model=self.config["ollama_model"],
+            url=self.config["ollama_url"],
+            auto_update=self.config.get("ollama_auto_update", True),
+            report=log_buffer.append,
+        )
+        self._updater.start()
 
     def _get_provider(self) -> BaseProvider:
         """Return the cached provider, creating it on first use.
@@ -112,7 +131,10 @@ class RewriteApp:
             preview = text[:60].replace("\n", " ")
             log_buffer.append(f"Captured {len(text)} chars: \"{preview}\"")
             self._set_status("Rewriting…")
-            log_buffer.append("Sending to Gemini…")
+            provider = self.config.get("provider", "gemini")
+            label = PROVIDER_LABELS.get(provider, provider)
+            model = self.config.get(f"{provider}_model", "")
+            log_buffer.append(f"Sending to {label} ({model})…")
 
             corrected = rewrite_text(text, self._get_provider())
 
@@ -164,10 +186,11 @@ class RewriteApp:
 
         def _on_save(new_config: dict) -> None:
             self.config = new_config
-            self._provider = None  # API key or model may have changed
+            self._provider = None  # provider, key or model may have changed
             self.hotkey_manager.register(
                 self.config["hotkey"], self._on_rewrite,
             )
+            self._restart_model_updater()
 
         def _run() -> None:
             try:
@@ -188,6 +211,8 @@ class RewriteApp:
     ) -> None:
         """Tear down hotkey listener and stop the tray icon."""
         self.hotkey_manager.unregister()
+        if self._updater is not None:
+            self._updater.stop()
         if self.tray:
             self.tray.stop()
 
@@ -202,6 +227,7 @@ class RewriteApp:
         )
 
         log_buffer.append(f"Started — hotkey: {self.config['hotkey']}")
+        self._restart_model_updater()
 
         menu = pystray.Menu(
             pystray.MenuItem(
@@ -229,6 +255,8 @@ def main() -> None:
         format="%(asctime)s [%(name)s] %(message)s",
         datefmt="%H:%M:%S",
     )
+    enable_dpi_awareness()  # before any window exists, or Windows blurs them
+    refresh_startup_entry()
     app = RewriteApp()
     app.run()
 
